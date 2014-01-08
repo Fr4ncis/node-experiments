@@ -26,7 +26,6 @@ app.listen(3000);
 
 // var replay = require("replay");
 
-var credentials = {username: "francesco.mattia@gmail.com", password: "fuckrest"};
 //var credentials = {username: "mac@fr4ncis.net", password: "miaomiao"};
 
 String.prototype.hashcode = function(){
