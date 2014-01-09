@@ -1,40 +1,61 @@
+// FIXME: there is an issue with non-JSON payload (urlencoded)
+
 // modules
 var https = require('https');
 var http = require('http');
-
-// handle arguments
-var targetProto, targetServer, listenPort = 3000;
-(function () {
-	var processArgs = process.argv.splice(2);
-	if (processArgs.length > 0) {
-		targetProto = processArgs[0].split("://")[0];
-		targetServer = processArgs[0].split("://")[1];
-	}
-	if (processArgs.length > 1)  {
-		listenPort = processArgs[1];
-	}
-})();
-
-// express
 var express = require('express');
-var app = express();
+var app;
 
-// does not support multipart
-app.use(express.json());
-app.use(express.urlencoded());
+var targetProto, targetServer, listenPort = 3000;
+var statuscode, body, headers; // make them 
 
-app.all('*', function(req, res) {
+var start = function(target, port) {
+	targetProto = target.split("://")[0];
+	targetServer = target.split("://")[1];
+	listenPort = port;
+	
+	
+	// express
+	app = express();
+
+	// does not support multipart
+	app.use(express.json());
+	app.use(express.urlencoded());
+
+	// forwards the request
+	app.use(requestForwarder);
+	
+	// forward response to client
+	app.use(responseForwarder);
+
+	app.listen(listenPort);
+}
+
+var addHandle = function(path, myfunc) {
+	app.stack.splice(app.stack.length-1, 0, {route: path, handle: myfunc});
+	console.log(app.stack);
+};
+
+exports.start = start;
+exports.addHandle = addHandle;
+
+var requestForwarder = function requestForwarder(req, res, next) {
 	request(req, function(response,data) {
-		res.status(response.statusCode).header(response.headers).write(data);
-		res.end();
+		statuscode = response.statusCode;
+		body = data;
+		headers = response.headers;
+		next();
 	});
-});
+};
 
-app.listen(listenPort);
+var responseForwarder = function responseForwarder(req, res, next) {
+	res.status(statuscode).header(headers).write(body);
+	res.end();
+}
 
 function request(request, callback) {
 	var postData = JSON.stringify(request.body);
-	if (request.method == 'POST') request.headers['content-Length'] = postData.length; // should test with PUT, DELETE, PATCH
+	if (['POST','PUT','PATCH'].indexOf(request.method) != -1) request.headers['content-Length'] = postData.length; // should test with PUT, DELETE, PATCH
 	var options = baseOptions(request);
 	var requester = (targetProto=="http"?http:https);
 			
